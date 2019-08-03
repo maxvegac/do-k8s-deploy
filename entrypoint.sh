@@ -20,8 +20,11 @@ doctl auth init -t $DO_TOKEN > /dev/null
 echo "Get kubernetes cluster configuration..."
 doctl kubernetes cluster kubeconfig save $DO_CLUSTER_NAME
 
+echo "Replacing environment variables in files..."
+perl -pi -e 's{\$(\{)?(\w+)(?(1)\})}{$ENV{$2} // $&}ge' k8s/*
+
 echo "Kubernetes plan with manifests"
-kubectl apply --dry-run -f /workspace/k8s/
+kubectl apply --dry-run -f k8s/
 
 echo "Apply!"
-kubectl apply -f /workspace/k8s/
+kubectl apply -f k8s/
