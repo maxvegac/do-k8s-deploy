@@ -14,17 +14,41 @@ if [ -z $DO_CLUSTER_NAME ]; then
   exit 1
 fi
 
-echo "Authenticating with DO..."
+INSTALL_TILLER=${INSTALL_TILLER:-false}
+
+echo "+ [DOCTL] Authenticating with DO..."
 doctl auth init -t $DO_TOKEN > /dev/null
 
-echo "Get kubernetes cluster configuration..."
+echo "+ [DOCTL] Get kubernetes cluster configuration..."
 doctl kubernetes cluster kubeconfig save $DO_CLUSTER_NAME
 
-echo "Replacing environment variables in files..."
-perl -pi -e 's{\$(\{)?(\w+)(?(1)\})}{$ENV{$2} // $&}ge' k8s/*
+echo "+ [SYSTEM] Replacing environment variables in files..."
+perl -pi -e 's{\$(\{)?(\w+)(?(1)\})}{$ENV{$2} // $&}ge' k8s/manifests/*
+perl -pi -e 's{\$(\{)?(\w+)(?(1)\})}{$ENV{$2} // $&}ge' k8s/charts/*
 
-echo "Kubernetes plan with manifests"
-kubectl apply --dry-run -f k8s/
+DIR="k8s/manifests"
+if [ -d "$DIR" ]; then
+   echo "+ [K8S] plan with manifests"
+   kubectl apply --dry-run -f k8s/manifests/
 
-echo "Apply!"
-kubectl apply -f k8s/
+   echo "+ [K8S] Apply!"
+   kubectl apply -f k8s/manifests/
+else
+  echo "- [K8S] k8s/manifests directory not found"
+fi
+
+
+
+if [ "$INSTALL_TILLER" = "true" ]; then
+    echo "+ [HELM] Installing Tiller..."
+    helm init --upgrade
+fi
+
+DIR="k8s/charts"
+if [ -d "$DIR" ]; then
+  echo "+ [HELM] plan for installing charts"
+  helm install --dry-run k8s/charts
+
+  echo "+ [HELM] install!"
+  helm install k8s/charts/*
+fi
